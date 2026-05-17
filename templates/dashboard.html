@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – StudyPro{% endblock %}
+
+{% block content %}
+<h1>Good day, Student! 👋</h1>
+<p class="subtitle">{{ today_name }}</p>
+
+<!-- Stats row -->
+<div class="grid4">
+  <div class="stat-card">
+    <div class="stat-icon purple"><i class="ti ti-clock"></i></div>
+    <div><div class="stat-label">Total Study Hours</div><div class="stat-val">{{ total_hours }}h</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon teal"><i class="ti ti-calendar"></i></div>
+    <div><div class="stat-label">Total Sessions</div><div class="stat-val">{{ total_sessions }}</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon red"><i class="ti ti-checklist"></i></div>
+    <div><div class="stat-label">Pending Tasks</div><div class="stat-val">{{ pending_count }}</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon yellow"><i class="ti ti-cards"></i></div>
+    <div><div class="stat-label">Flashcards</div><div class="stat-val">{{ fc_count }}</div></div>
+  </div>
+</div>
+
+<div class="grid2">
+  <!-- Today's sessions -->
+  <div class="card">
+    <div class="section-title">Today's Sessions</div>
+    {% if today_sessions %}
+      {% for s in today_sessions %}
+      <div class="row-item">
+        <span class="dot dot-{{ s.subject.color }}"></span>
+        <span style="width:110px;font-size:13px;color:var(--muted)">{{ s.start }}–{{ s.end }}</span>
+        <span style="flex:1;font-size:14px">{{ s.subject.name }}</span>
+        <span class="tag">{{ s.duration_min }} min</span>
+        {% if s.notes %}<span class="tag">{{ s.notes }}</span>{% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state"><i class="ti ti-calendar-off"></i>No sessions today</div>
+    {% endif %}
+  </div>
+
+  <!-- Pending tasks -->
+  <div class="card">
+    <div class="section-title">Pending Tasks</div>
+    {% if pending_tasks %}
+      {% for t in pending_tasks %}
+      <div class="row-item">
+        <span class="dot dot-{{ t.subject.color }}"></span>
+        <span style="flex:1;font-size:14px">{{ t.title }}</span>
+        <span class="badge badge-{{ t.subject.color }}">{{ t.subject.name }}</span>
+        <span class="priority-{{ t.priority|lower }}" style="font-size:12px;font-weight:600">{{ t.priority }}</span>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state"><i class="ti ti-check"></i>All tasks done!</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Subject progress -->
+<div class="card">
+  <div class="section-title">Subject Goals Progress</div>
+  {% for s in subject_progress %}
+  <div style="margin-bottom:0.9rem">
+    <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:5px">
+      <span style="display:flex;align-items:center;gap:7px">
+        <span class="dot dot-{{ s.color }}"></span>{{ s.name }}
+      </span>
+      <span style="color:var(--muted)">{{ s.studied }}h / {{ s.goal }}h &nbsp;({{ s.pct }}%)</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" style="width:{{ s.pct }}%;background:var(--{{ s.color }})"></div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Tasks – StudyPro{% endblock %}
+
+{% block content %}
+<h1>Tasks & Assignments</h1>
+<p class="subtitle">Track deadlines and to-dos</p>
+
+<div class="toolbar">
+  <button class="btn btn-primary" onclick="openModal('task-modal')"><i class="ti ti-plus"></i> Add Task</button>
+</div>
+
+<div class="grid2">
+  <!-- Pending -->
+  <div class="card">
+    <div class="section-title">Pending ({{ pending|length }})</div>
+    {% if pending %}
+      {% for t in pending %}
+      <div class="row-item" id="task-{{ t.id }}">
+        <button class="btn btn-sm" style="padding:4px;border-radius:50%;border:2px solid var(--border);background:transparent;color:var(--muted);width:26px;height:26px;flex-shrink:0" onclick="toggleTask({{ t.id }})">
+          <i class="ti ti-check" style="font-size:13px"></i>
+        </button>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:500{% if t.overdue %};color:var(--danger){% endif %}">{{ t.title }}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">
+            Due: {{ t.due or '—' }} &nbsp;·&nbsp;
+            <span class="priority-{{ t.priority|lower }}">{{ t.priority }}</span>
+            {% if t.overdue %}&nbsp;·&nbsp;<span style="color:var(--danger);font-weight:600">Overdue</span>{% endif %}
+          </div>
+        </div>
+        <span class="badge badge-{{ t.subject.color }}">{{ t.subject.name }}</span>
+        <button class="btn btn-danger btn-sm" onclick="deleteTask({{ t.id }})"><i class="ti ti-trash"></i></button>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state"><i class="ti ti-check"></i>Nothing pending!</div>
+    {% endif %}
+  </div>
+
+  <!-- Done -->
+  <div class="card">
+    <div class="section-title">Completed ({{ done|length }})</div>
+    {% if done %}
+      {% for t in done %}
+      <div class="row-item" id="task-{{ t.id }}">
+        <button class="btn btn-sm" style="padding:4px;border-radius:50%;border:2px solid var(--accent2);background:var(--accent2);color:#fff;width:26px;height:26px;flex-shrink:0" onclick="toggleTask({{ t.id }})">
+          <i class="ti ti-check" style="font-size:13px"></i>
+        </button>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;text-decoration:line-through;color:var(--muted)">{{ t.title }}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">Due: {{ t.due or '—' }}</div>
+        </div>
+        <span class="badge badge-{{ t.subject.color }}">{{ t.subject.name }}</span>
+        <button class="btn btn-danger btn-sm" onclick="deleteTask({{ t.id }})"><i class="ti ti-trash"></i></button>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state"><i class="ti ti-clock"></i>No completed tasks yet</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-backdrop" id="task-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Add Task</h3>
+      <button class="close-btn" onclick="closeModal('task-modal')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="fgroup"><label>Task Title</label><input type="text" id="t-title" placeholder="e.g. Complete Chapter 5 exercises"/></div>
+    <div class="fgroup-row3">
+      <div>
+        <label>Subject</label>
+        <select id="t-subject">
+          {% for sub in subjects %}<option value="{{ sub.id }}">{{ sub.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div><label>Due Date</label><input type="date" id="t-due"/></div>
+      <div>
+        <label>Priority</label>
+        <select id="t-priority">
+          <option>High</option><option selected>Medium</option><option>Low</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('task-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addTask()">Add Task</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function addTask() {
+  const title      = document.getElementById('t-title').value.trim();
+  const subject_id = document.getElementById('t-subject').value;
+  const due        = document.getElementById('t-due').value;
+  const priority   = document.getElementById('t-priority').value;
+  if (!title) { alert('Please enter a task title.'); return; }
+  await api('/api/tasks', 'POST', { title, subject_id, due, priority });
+  location.reload();
+}
+async function toggleTask(id) {
+  await api('/api/tasks/' + id + '/toggle', 'POST');
+  location.reload();
+}
+async function deleteTask(id) {
+  if (!confirm('Delete this task?')) return;
+  await api('/api/tasks/' + id, 'DELETE');
+  location.reload();
+}
+</script>
+{% endblock %}

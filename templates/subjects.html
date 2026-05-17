@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Subjects – StudyPro{% endblock %}
+
+{% block content %}
+<h1>Subjects</h1>
+<p class="subtitle">Manage your subjects and weekly study goals</p>
+
+<div class="toolbar">
+  <button class="btn btn-primary" onclick="openModal('subject-modal')"><i class="ti ti-plus"></i> Add Subject</button>
+</div>
+
+{% if subjects %}
+<div class="grid3">
+  {% for s in subjects %}
+  <div class="card" style="border-top:3px solid var(--{{ s.color }})">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:0.8rem">
+      <span class="dot dot-{{ s.color }}" style="width:14px;height:14px"></span>
+      <span style="font-size:16px;font-weight:700">{{ s.name }}</span>
+    </div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:0.6rem">
+      Weekly goal: <b style="color:var(--text)">{{ s.goal }}h</b> &nbsp;·&nbsp; Studied: <b style="color:var(--{{ s.color }})">{{ s.studied }}h</b>
+    </div>
+    <div class="progress-bar" style="margin-bottom:0.4rem">
+      <div class="progress-fill" style="width:{{ s.pct }}%;background:var(--{{ s.color }})"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:12px;color:var(--muted)">{{ s.pct }}% of weekly goal</span>
+      <button class="btn btn-danger btn-sm" onclick="deleteSubject({{ s.id }})"><i class="ti ti-trash"></i></button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+  <div class="empty-state"><i class="ti ti-books"></i>No subjects yet. Add one to get started!</div>
+{% endif %}
+
+<!-- Modal -->
+<div class="modal-backdrop" id="subject-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Add Subject</h3>
+      <button class="close-btn" onclick="closeModal('subject-modal')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="fgroup"><label>Subject Name</label><input type="text" id="sub-name" placeholder="e.g. Mathematics"/></div>
+    <div class="fgroup-row">
+      <div>
+        <label>Color</label>
+        <select id="sub-color">
+          <option value="purple">Purple</option>
+          <option value="teal">Teal</option>
+          <option value="red">Red</option>
+          <option value="yellow">Yellow</option>
+          <option value="blue">Blue</option>
+        </select>
+      </div>
+      <div><label>Weekly Goal (hours)</label><input type="number" id="sub-goal" placeholder="5" min="1" max="168"/></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('subject-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addSubject()">Add Subject</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function addSubject() {
+  const name  = document.getElementById('sub-name').value.trim();
+  const color = document.getElementById('sub-color').value;
+  const goal  = document.getElementById('sub-goal').value || 5;
+  if (!name) { alert('Please enter a subject name.'); return; }
+  await api('/api/subjects', 'POST', { name, color, goal });
+  location.reload();
+}
+async function deleteSubject(id) {
+  if (!confirm('Delete this subject? Related sessions will remain.')) return;
+  await api('/api/subjects/' + id, 'DELETE');
+  location.reload();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}Focus Timer – StudyPro{% endblock %}
+
+{% block head %}
+<style>
+.timer-card { text-align: center; padding: 1.5rem; }
+.ring { width: 160px; height: 160px; margin: 0 auto 1.2rem; position: relative; }
+.ring svg { transform: rotate(-90deg); }
+.ring-track { fill: none; stroke: #252a3d; stroke-width: 12; }
+.ring-fill  { fill: none; stroke-width: 12; stroke-linecap: round; transition: stroke-dashoffset 0.6s; }
+.ring-label { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.timer-btn-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 0.5rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Focus Timer</h1>
+<p class="subtitle">Pomodoro technique — 25 min focus, 5 min break</p>
+
+<div class="grid2" style="max-width:680px;margin-bottom:1.2rem">
+  <!-- Pomodoro -->
+  <div class="card timer-card">
+    <div class="section-title">Focus (Pomodoro)</div>
+    <div class="ring">
+      <svg width="160" height="160" viewBox="0 0 160 160">
+        <circle class="ring-track" cx="80" cy="80" r="68"/>
+        <circle class="ring-fill" id="pom-ring" cx="80" cy="80" r="68"
+          stroke="#6c63ff" stroke-dasharray="427" stroke-dashoffset="0"/>
+      </svg>
+      <div class="ring-label" id="pom-display" style="color:var(--accent)">25:00</div>
+    </div>
+    <div class="timer-btn-row">
+      <button class="btn btn-primary" id="pom-btn" onclick="togglePom()"><i class="ti ti-player-play"></i> Start</button>
+      <button class="btn btn-outline" onclick="resetPom()"><i class="ti ti-refresh"></i> Reset</button>
+    </div>
+    <div style="margin-top:0.8rem;font-size:13px;color:var(--muted)">
+      Sessions today: <b style="color:var(--accent)" id="pom-count">{{ pomodoro_count }}</b>
+    </div>
+  </div>
+
+  <!-- Break -->
+  <div class="card timer-card">
+    <div class="section-title">Short Break</div>
+    <div class="ring">
+      <svg width="160" height="160" viewBox="0 0 160 160">
+        <circle class="ring-track" cx="80" cy="80" r="68"/>
+        <circle class="ring-fill" id="brk-ring" cx="80" cy="80" r="68"
+          stroke="#00bfa5" stroke-dasharray="427" stroke-dashoffset="0"/>
+      </svg>
+      <div class="ring-label" id="brk-display" style="color:var(--accent2)">05:00</div>
+    </div>
+    <div class="timer-btn-row">
+      <button class="btn btn-teal" id="brk-btn" onclick="toggleBrk()"><i class="ti ti-player-play"></i> Start</button>
+      <button class="btn btn-outline" onclick="resetBrk()"><i class="ti ti-refresh"></i> Reset</button>
+    </div>
+    <div style="margin-top:0.8rem;font-size:13px;color:var(--muted)">5-minute rest break</div>
+  </div>
+</div>
+
+<!-- Quick study log -->
+<div class="card" style="max-width:680px">
+  <div class="section-title">Quick Study Log</div>
+  <div class="fgroup-row3">
+    <div>
+      <label>Subject</label>
+      <select id="log-subject">
+        {% for sub in subjects %}<option value="{{ sub.id }}">{{ sub.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div><label>Duration (min)</label><input type="number" id="log-dur" placeholder="25" min="1" max="480"/></div>
+    <div><label>Notes</label><input type="text" id="log-note" placeholder="What did you study?"/></div>
+  </div>
+  <button class="btn btn-primary btn-sm" onclick="logStudy()"><i class="ti ti-check"></i> Log Session</button>
+
+  <div style="margin-top:1.2rem">
+    <div class="section-title">Recent Logs</div>
+    {% if recent_log %}
+      {% for log in recent_log %}
+      <div class="row-item">
+        <span class="dot dot-{{ log.subject.color }}"></span>
+        <span style="flex:1;font-size:14px">{{ log.subject.name }}</span>
+        <span class="tag">{{ log.duration_min }} min</span>
+        <span class="tag">{{ log.date }}</span>
+        {% if log.note %}<span class="tag">{{ log.note }}</span>{% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state"><i class="ti ti-clock"></i>No logs yet</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Pomodoro ──────────────────────────────
+const POM_TOTAL = 25 * 60;
+const BRK_TOTAL = 5  * 60;
+const CIRC = 427; // 2 * pi * 68
+
+let pomSecs = POM_TOTAL, pomRunning = false, pomTimer = null;
+let brkSecs = BRK_TOTAL, brkRunning = false, brkTimer = null;
+
+function fmt(s) { return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); }
+
+function updateRing(id, secs, total) {
+  const pct = secs / total;
+  document.getElementById(id).style.strokeDashoffset = CIRC * (1 - pct);
+}
+
+function togglePom() {
+  if (pomRunning) {
+    clearInterval(pomTimer); pomRunning = false;
+    document.getElementById('pom-btn').innerHTML = '<i class="ti ti-player-play"></i> Start';
+  } else {
+    pomRunning = true;
+    document.getElementById('pom-btn').innerHTML = '<i class="ti ti-player-pause"></i> Pause';
+    pomTimer = setInterval(async () => {
+      pomSecs--;
+      document.getElementById('pom-display').textContent = fmt(pomSecs);
+      updateRing('pom-ring', pomSecs, POM_TOTAL);
+      if (pomSecs <= 0) {
+        clearInterval(pomTimer); pomRunning = false; pomSecs = POM_TOTAL;
+        document.getElementById('pom-display').textContent = '25:00';
+        document.getElementById('pom-btn').innerHTML = '<i class="ti ti-player-play"></i> Start';
+        updateRing('pom-ring', POM_TOTAL, POM_TOTAL);
+        const r = await api('/api/pomodoro_complete','POST');
+        document.getElementById('pom-count').textContent = r.count;
+        alert('🎉 Pomodoro complete! Take a break.');
+      }
+    }, 1000);
+  }
+}
+
+function resetPom() {
+  clearInterval(pomTimer); pomRunning = false; pomSecs = POM_TOTAL;
+  document.getElementById('pom-display').textContent = '25:00';
+  document.getElementById('pom-btn').innerHTML = '<i class="ti ti-player-play"></i> Start';
+  updateRing('pom-ring', POM_TOTAL, POM_TOTAL);
+}
+
+function toggleBrk() {
+  if (brkRunning) {
+    clearInterval(brkTimer); brkRunning = false;
+    document.getElementById('brk-btn').innerHTML = '<i class="ti ti-player-play"></i> Start';
+  } else {
+    brkRunning = true;
+    document.getElementById('brk-btn').innerHTML = '<i class="ti ti-player-pause"></i> Pause';
+    brkTimer = setInterval(() => {
+      brkSecs--;
+      document.getElementById('brk-display').textContent = fmt(brkSecs);
+      updateRing('brk-ring', brkSecs, BRK_TOTAL);
+      if (brkSecs <= 0) {
+        clearInterval(brkTimer); brkRunning = false; brkSecs = BRK_TOTAL;
+        document.getElementById('brk-display').textContent = '05:00';
+        document.getElementById('brk-btn').innerHTML = '<i class="ti ti-player-play"></i> Start';
+        updateRing('brk-ring', BRK_TOTAL, BRK_TOTAL);
+        alert('⏰ Break over! Time to focus.');
+      }
+    }, 1000);
+  }
+}
+
+function resetBrk() {
+  clearInterval(brkTimer); brkRunning = false; brkSecs = BRK_TOTAL;
+  document.getElementById('brk-display').textContent = '05:00';
+  document.getElementById('brk-btn').innerHTML = '<i class="ti ti-player-play"></i> Start';
+  updateRing('brk-ring', BRK_TOTAL, BRK_TOTAL);
+}
+
+async function logStudy() {
+  const subject_id   = document.getElementById('log-subject').value;
+  const duration_min = document.getElementById('log-dur').value;
+  const note         = document.getElementById('log-note').value;
+  if (!subject_id || !duration_min) { alert('Please select a subject and enter duration.'); return; }
+  await api('/api/study_log','POST',{subject_id,duration_min,note});
+  location.reload();
+}
+</script>
+{% endblock %}

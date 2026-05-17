@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+{% block title %}Flashcards – StudyPro{% endblock %}
+
+{% block head %}
+<style>
+.fc-scene { perspective: 900px; height: 220px; cursor: pointer; margin-bottom: 1rem; user-select: none; }
+.fc-inner { width: 100%; height: 100%; transition: transform 0.55s cubic-bezier(.4,0,.2,1); transform-style: preserve-3d; position: relative; }
+.fc-scene.flipped .fc-inner { transform: rotateY(180deg); }
+.fc-face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; text-align: center; gap: 8px; }
+.fc-front { background: var(--card); border: 2px solid var(--accent); }
+.fc-back  { background: rgba(0,191,165,0.07); border: 2px solid var(--accent2); transform: rotateY(180deg); }
+.fc-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+.fc-front .fc-label { color: var(--muted); }
+.fc-back  .fc-label { color: var(--accent2); }
+.fc-front p { font-size: 1.1rem; font-weight: 600; line-height: 1.5; }
+.fc-back  p { font-size: 1rem; line-height: 1.5; }
+.fc-flip-hint { font-size: 11px; color: var(--border); margin-top: 6px; }
+.rate-btns { display: flex; gap: 10px; justify-content: center; margin-bottom: 1.2rem; }
+.rate-btn { flex: 1; max-width: 130px; padding: 0.6rem; border-radius: 10px; border: 1px solid; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 3px; transition: all 0.2s; }
+.rate-btn i { font-size: 20px; }
+.rate-btn small { font-weight: 400; font-size: 11px; }
+.rate-btn.again { background: rgba(255,101,132,0.12); color: var(--danger); border-color: rgba(255,101,132,0.25); }
+.rate-btn.hard  { background: rgba(255,209,102,0.12); color: var(--warn);   border-color: rgba(255,209,102,0.25); }
+.rate-btn.good  { background: rgba(0,191,165,0.12);   color: var(--success);border-color: rgba(0,191,165,0.25); }
+.rate-btn:hover { filter: brightness(1.2); transform: translateY(-2px); }
+.ai-panel { background: rgba(108,99,255,0.06); border: 1px solid rgba(108,99,255,0.2); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
+.ai-panel-title { font-size: 12px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.6rem; display: flex; align-items: center; gap: 6px; }
+.ai-output { font-size: 13px; color: var(--text); line-height: 1.6; padding: 0.7rem; background: rgba(0,0,0,0.2); border-radius: 8px; min-height: 40px; }
+.review-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 8px; }
+.review-stats { display: flex; gap: 16px; font-size: 13px; color: var(--muted); }
+.review-stats span b { color: var(--text); }
+.progress-dots { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 1rem; }
+.pdot { width: 10px; height: 10px; border-radius: 50%; background: #252a3d; transition: background 0.3s; }
+.pdot.correct { background: var(--success); }
+.pdot.wrong   { background: var(--danger); }
+.pdot.current { background: var(--accent); }
+.ai-gen-card { background: linear-gradient(135deg, rgba(108,99,255,0.08), rgba(0,191,165,0.05)); border: 1px solid rgba(108,99,255,0.25); border-radius: 14px; padding: 1.3rem; margin-bottom: 1.2rem; }
+.ai-gen-title { font-size: 15px; font-weight: 700; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 8px; }
+.ai-gen-title i { color: var(--accent); font-size: 20px; }
+.deck-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
+.deck-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; }
+.fc-list-item { display: flex; align-items: flex-start; gap: 8px; padding: 0.55rem 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.fc-list-item:last-child { border-bottom: none; }
+.fc-list-q { flex: 1; }
+.fc-list-a { flex: 1; color: var(--muted); font-size: 12px; }
+.score-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Flashcards</h1>
+<p class="subtitle">AI-powered study cards with spaced repetition</p>
+
+<!-- REVIEW SECTION -->
+<div id="review-section" style="display:none;max-width:640px">
+  <div class="review-header">
+    <button class="btn btn-outline btn-sm" onclick="exitReview()"><i class="ti ti-arrow-left"></i> Back</button>
+    <div class="review-stats">
+      <span>Card <b id="r-current">1</b> / <b id="r-total">1</b></span>
+      <span>✓ <b id="r-correct" style="color:var(--success)">0</b></span>
+      <span>✗ <b id="r-wrong" style="color:var(--danger)">0</b></span>
+    </div>
+  </div>
+  <div class="progress-dots" id="progress-dots"></div>
+  <div class="fc-scene" id="fc-scene" onclick="flipCard()">
+    <div class="fc-inner">
+      <div class="fc-face fc-front">
+        <span class="fc-label"><i class="ti ti-help-circle"></i> Question</span>
+        <p id="fc-q-text">Loading…</p>
+        <span class="fc-flip-hint">Click card to reveal answer</span>
+      </div>
+      <div class="fc-face fc-back">
+        <span class="fc-label"><i class="ti ti-check-circle"></i> Answer</span>
+        <p id="fc-a-text">Loading…</p>
+      </div>
+    </div>
+  </div>
+  <div class="rate-btns">
+    <button class="rate-btn again" onclick="rate(false)"><i class="ti ti-refresh"></i>Again<small>Didn't know</small></button>
+    <button class="rate-btn hard"  onclick="rate(null)"><i class="ti ti-minus"></i>Hard<small>Struggled</small></button>
+    <button class="rate-btn good"  onclick="rate(true)"><i class="ti ti-check"></i>Got it!<small>Knew it</small></button>
+  </div>
+  <!-- AI Hint -->
+  <div class="ai-panel">
+    <div class="ai-panel-title"><i class="ti ti-bulb"></i> AI Assistant</div>
+    <div class="ai-output" id="hint-output" style="color:var(--muted);font-style:italic">Click "Get Hint" for an AI clue, or "Explain" after revealing the answer.</div>
+    <div style="display:flex;gap:8px;margin-top:0.7rem;flex-wrap:wrap">
+      <button class="btn btn-outline btn-sm" onclick="getHint()"><i class="ti ti-bulb"></i> Get Hint</button>
+      <button class="btn btn-outline btn-sm" onclick="getExplanation()"><i class="ti ti-book-2"></i> Explain Answer</button>
+    </div>
+  </div>
+</div>
+
+<!-- DECK SECTION -->
+<div id="deck-section">
+  <!-- AI Generator -->
+  <div class="ai-gen-card">
+    <div class="ai-gen-title"><i class="ti ti-robot"></i> AI Flashcard Generator</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:0.9rem">
+      Describe any topic and AI will generate study cards for you instantly.
+    </p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;margin-bottom:0.7rem">
+      <div><label>Subject</label><select id="ai-subject">{% for sub in subjects %}<option value="{{ sub.id }}">{{ sub.name }}</option>{% endfor %}</select></div>
+      <div><label>Number of Cards</label><select id="ai-count"><option value="3">3 cards</option><option value="5" selected>5 cards</option><option value="8">8 cards</option><option value="10">10 cards</option><option value="15">15 cards</option></select></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.7rem;margin-bottom:1rem">
+      <div><label>Topic / Concept</label><input type="text" id="ai-topic" placeholder="e.g. Newton's Laws, French Revolution…"/></div>
+      <div><label>Difficulty</label><select id="ai-difficulty"><option value="beginner">Beginner</option><option value="medium" selected>Medium</option><option value="advanced">Advanced</option><option value="exam">Exam Level</option></select></div>
+    </div>
+    <button class="btn btn-primary" id="ai-gen-btn" onclick="generateCards()"><i class="ti ti-sparkles"></i> Generate AI Flashcards</button>
+    <div id="ai-gen-status" style="margin-top:0.7rem;font-size:13px"></div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn btn-outline" onclick="openModal('fc-modal')"><i class="ti ti-plus"></i> Add Card Manually</button>
+  </div>
+
+  {% if groups %}
+    {% for g in groups %}
+    <div class="deck-card">
+      <div class="deck-header">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="dot dot-{{ g.subject.color }}"></span>
+          <b style="font-size:15px">{{ g.subject.name }}</b>
+          <span class="badge badge-{{ g.subject.color }}">{{ g.cards|length }} cards</span>
+          <span style="font-size:12px;color:var(--muted)">{{ g.known }} mastered</span>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="startReview('{{ g.subject.id }}')"><i class="ti ti-player-play"></i> Review</button>
+      </div>
+      <div class="progress-bar" style="margin-bottom:0.8rem">
+        <div class="progress-fill" style="width:{{ ((g.known / [g.cards|length, 1]|max) * 100)|round }}%;background:var(--{{ g.subject.color }})"></div>
+      </div>
+      {% for c in g.cards %}
+      <div class="fc-list-item">
+        <div class="score-dot" style="background:{% if c.score > 0 %}var(--success){% else %}#3a3f55{% endif %}"></div>
+        <div class="fc-list-q">{{ c.question }}</div>
+        <div class="fc-list-a">{{ c.answer }}</div>
+        <button class="btn btn-danger btn-sm" style="flex-shrink:0" onclick="deleteCard({{ c.id }})"><i class="ti ti-trash"></i></button>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty-state"><i class="ti ti-cards"></i>No flashcards yet.<br>Generate some with AI above or add manually!</div>
+  {% endif %}
+</div>
+
+<!-- Manual Add Modal -->
+<div class="modal-backdrop" id="fc-modal">
+  <div class="modal">
+    <div class="modal-header"><h3>Add Flashcard Manually</h3><button class="close-btn" onclick="closeModal('fc-modal')"><i class="ti ti-x"></i></button></div>
+    <div class="fgroup"><label>Subject</label><select id="fc-subject">{% for sub in subjects %}<option value="{{ sub.id }}">{{ sub.name }}</option>{% endfor %}</select></div>
+    <div class="fgroup"><label>Question / Front</label><textarea id="fc-q" rows="2" placeholder="What is...?"></textarea></div>
+    <div class="fgroup"><label>Answer / Back</label><textarea id="fc-a" rows="2" placeholder="The answer is..."></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('fc-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addCard()">Add Card</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const allCards = {{ groups | tojson }};
+let queue = [], qIdx = 0, correctCount = 0, wrongCount = 0;
+
+// API key is configured in app.py (OPENROUTER_API_KEY)
+
+// AI Generate
+async function generateCards() {
+  const topic      = document.getElementById('ai-topic').value.trim();
+  const subject_id = document.getElementById('ai-subject').value;
+  const count      = document.getElementById('ai-count').value;
+  const difficulty = document.getElementById('ai-difficulty').value;
+  if (!topic)   { alert('Please enter a topic.'); return; }
+  const btn = document.getElementById('ai-gen-btn');
+  const status = document.getElementById('ai-gen-status');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2"></i> Generating…';
+  status.innerHTML = '<span style="color:var(--accent)">⏳ AI is creating your flashcards…</span>';
+  try {
+    const r = await fetch('/api/ai/generate_flashcards', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({topic,subject_id,count,difficulty})});
+    const data = await r.json();
+    if (data.ok) {
+      status.innerHTML = `<span style="color:var(--success)">✓ Generated ${data.count} flashcards! Refreshing…</span>`;
+      setTimeout(() => location.reload(), 900);
+    } else {
+      status.innerHTML = `<span style="color:var(--danger)">✗ ${data.error}</span>`;
+      btn.disabled = false;
+      btn.innerHTML = '<i class="ti ti-sparkles"></i> Generate AI Flashcards';
+    }
+  } catch(e) {
+    status.innerHTML = `<span style="color:var(--danger)">✗ Network error: ${e.message}</span>`;
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-sparkles"></i> Generate AI Flashcards';
+  }
+}
+
+// Manual add/delete
+async function addCard() {
+  const subject_id = document.getElementById('fc-subject').value;
+  const question   = document.getElementById('fc-q').value.trim();
+  const answer     = document.getElementById('fc-a').value.trim();
+  if (!question || !answer) { alert('Please fill in question and answer.'); return; }
+  await api('/api/flashcards','POST',{subject_id,question,answer});
+  location.reload();
+}
+async function deleteCard(id) {
+  if (!confirm('Delete this card?')) return;
+  await api('/api/flashcards/'+id,'DELETE');
+  location.reload();
+}
+
+// Review
+function startReview(subjectId) {
+  const group = allCards.find(g => String(g.subject.id) === String(subjectId));
+  if (!group || !group.cards.length) return;
+  queue = [...group.cards]; qIdx = 0; correctCount = 0; wrongCount = 0;
+  document.getElementById('deck-section').style.display   = 'none';
+  document.getElementById('review-section').style.display = 'block';
+  document.getElementById('progress-dots').innerHTML =
+    queue.map((_,i) => `<div class="pdot ${i===0?'current':''}" id="pdot-${i}"></div>`).join('');
+  showCard();
+}
+function showCard() {
+  if (qIdx >= queue.length) { finishReview(); return; }
+  const c = queue[qIdx];
+  document.getElementById('r-current').textContent  = qIdx + 1;
+  document.getElementById('r-total').textContent    = queue.length;
+  document.getElementById('r-correct').textContent  = correctCount;
+  document.getElementById('r-wrong').textContent    = wrongCount;
+  document.getElementById('fc-q-text').textContent  = c.question;
+  document.getElementById('fc-a-text').textContent  = c.answer;
+  document.getElementById('fc-scene').classList.remove('flipped');
+  document.getElementById('hint-output').textContent  = 'Click "Get Hint" for an AI clue, or "Explain" after revealing the answer.';
+  document.getElementById('hint-output').style.cssText = 'color:var(--muted);font-style:italic';
+  const cur = document.getElementById('pdot-'+qIdx);
+  if (cur) cur.className = 'pdot current';
+}
+function flipCard() { document.getElementById('fc-scene').classList.toggle('flipped'); }
+async function rate(correct) {
+  const card = queue[qIdx];
+  const dot  = document.getElementById('pdot-'+qIdx);
+  if (correct === true)  { correctCount++; if(dot) dot.className='pdot correct'; }
+  if (correct === false) { wrongCount++;   if(dot) dot.className='pdot wrong'; }
+  if (correct === null)  { wrongCount++;   if(dot) dot.className='pdot wrong'; }
+  if (correct !== null) await api('/api/flashcards/'+card.id+'/score','POST',{correct});
+  qIdx++; showCard();
+}
+function finishReview() {
+  const pct = Math.round((correctCount / queue.length) * 100);
+  document.getElementById('review-section').innerHTML = `
+    <div class="card" style="text-align:center;padding:2.5rem">
+      <div style="font-size:3.5rem;margin-bottom:0.5rem">${pct>=80?'🎉':pct>=50?'💪':'📚'}</div>
+      <h2 style="margin-bottom:0.5rem">Review Complete!</h2>
+      <div style="font-size:2rem;font-weight:800;color:var(--accent);margin-bottom:1rem">${pct}%</div>
+      <div style="display:flex;gap:1.5rem;justify-content:center;margin-bottom:1.5rem;font-size:14px">
+        <span style="color:var(--success)">✓ ${correctCount} correct</span>
+        <span style="color:var(--danger)">✗ ${wrongCount} wrong</span>
+        <span style="color:var(--muted)">${queue.length} total</span>
+      </div>
+      <button class="btn btn-primary" onclick="location.reload()"><i class="ti ti-refresh"></i> Back to Decks</button>
+    </div>`;
+}
+function exitReview() {
+  document.getElementById('review-section').style.display = 'none';
+  document.getElementById('deck-section').style.display   = 'block';
+}
+
+// AI Hint
+async function getHint() {
+  const out = document.getElementById('hint-output');
+  out.textContent = '⏳ Getting hint…';
+  out.style.cssText = 'color:var(--muted);font-style:italic';
+  const r = await fetch('/api/ai/hint',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({question:queue[qIdx]?.question})});
+  const data = await r.json();
+  if (data.ok) { out.textContent='💡 '+data.hint; out.style.cssText='color:var(--text)'; }
+  else         { out.textContent='✗ '+data.error; out.style.cssText='color:var(--danger)'; }
+}
+
+// AI Explain
+async function getExplanation() {
+  const out = document.getElementById('hint-output');
+  out.textContent = '⏳ Generating explanation…';
+  out.style.cssText = 'color:var(--muted);font-style:italic';
+  const card = queue[qIdx];
+  const r = await fetch('/api/ai/explain',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({question:card?.question, answer:card?.answer})});
+  const data = await r.json();
+  if (data.ok) { out.textContent='📖 '+data.explanation; out.style.cssText='color:var(--text)'; }
+  else         { out.textContent='✗ '+data.error;        out.style.cssText='color:var(--danger)'; }
+}
+</script>
+{% endblock %}

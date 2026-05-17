@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Planner – StudyPro{% endblock %}
+
+{% block head %}
+<style>
+.week-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 6px; }
+.day-col { min-height: 100px; }
+.day-header { font-size: 12px; font-weight: 600; color: var(--muted); text-align: center; margin-bottom: 5px; }
+.day-header .day-num { display: block; font-size: 16px; font-weight: 700; color: var(--text); }
+.day-header.today-col .day-num { color: var(--accent); }
+.day-slot { border-radius: 6px; padding: 4px 6px; font-size: 11px; margin-bottom: 3px; cursor: default; }
+.day-slot.purple { background: rgba(108,99,255,0.14); color: #a29bfe; }
+.day-slot.teal   { background: rgba(0,191,165,0.14);  color: #00bfa5; }
+.day-slot.red    { background: rgba(255,101,132,0.14); color: #ff6584; }
+.day-slot.yellow { background: rgba(255,209,102,0.14); color: #ffd166; }
+.day-slot.blue   { background: rgba(84,160,255,0.14);  color: #54a0ff; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Weekly Planner</h1>
+<p class="subtitle">Schedule and manage your study sessions</p>
+
+<div class="toolbar">
+  <button class="btn btn-primary" onclick="openModal('session-modal')"><i class="ti ti-plus"></i> Add Session</button>
+</div>
+
+<!-- Week view -->
+<div class="card" style="margin-bottom:1.2rem">
+  <div class="section-title">This Week</div>
+  <div class="week-grid">
+    {% for day in week_days %}
+    <div class="day-col">
+      <div class="day-header {% if day.is_today %}today-col{% endif %}">
+        {{ day.name }}<span class="day-num">{{ day.short_date }}</span>
+      </div>
+      {% if day.sessions %}
+        {% for s in day.sessions %}
+        <div class="day-slot {{ s.subject.color }}" title="{{ s.subject.name }} {{ s.start }}–{{ s.end }}">
+          {{ s.subject.name[:7] }}<br>{{ s.start }}
+        </div>
+        {% endfor %}
+      {% else %}
+        <div style="font-size:11px;color:var(--border);text-align:center;padding-top:4px">free</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- All sessions list -->
+<div class="card">
+  <div class="section-title">All Sessions</div>
+  {% if all_sessions %}
+    {% for s in all_sessions %}
+    <div class="row-item">
+      <span class="dot dot-{{ s.subject.color }}"></span>
+      <span style="flex:1;font-size:14px;font-weight:500">{{ s.subject.name }}</span>
+      <span class="tag">{{ s.date }}</span>
+      <span class="tag">{{ s.start }}–{{ s.end }}</span>
+      <span class="tag">{{ s.duration_min }} min</span>
+      {% if s.notes %}<span class="tag">{{ s.notes }}</span>{% endif %}
+      <button class="btn btn-danger btn-sm" onclick="deleteSession({{ s.id }})"><i class="ti ti-trash"></i></button>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty-state"><i class="ti ti-calendar-off"></i>No sessions yet. Add one!</div>
+  {% endif %}
+</div>
+
+<!-- Add Session Modal -->
+<div class="modal-backdrop" id="session-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Add Study Session</h3>
+      <button class="close-btn" onclick="closeModal('session-modal')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="fgroup-row">
+      <div>
+        <label>Subject</label>
+        <select id="s-subject">
+          {% for sub in subjects %}<option value="{{ sub.id }}">{{ sub.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Date</label>
+        <input type="date" id="s-date" value="{{ today }}"/>
+      </div>
+    </div>
+    <div class="fgroup-row">
+      <div><label>Start Time</label><input type="time" id="s-start" value="09:00"/></div>
+      <div><label>End Time</label>  <input type="time" id="s-end"   value="10:00"/></div>
+    </div>
+    <div class="fgroup">
+      <label>Notes (optional)</label>
+      <textarea id="s-notes" rows="2" placeholder="What will you study?"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('session-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addSession()">Add Session</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function addSession() {
+  const subject_id = document.getElementById('s-subject').value;
+  const date       = document.getElementById('s-date').value;
+  const start      = document.getElementById('s-start').value;
+  const end        = document.getElementById('s-end').value;
+  const notes      = document.getElementById('s-notes').value;
+  if (!subject_id || !date || !start || !end) { alert('Please fill all required fields.'); return; }
+  await api('/api/sessions', 'POST', { subject_id, date, start, end, notes });
+  location.reload();
+}
+async function deleteSession(id) {
+  if (!confirm('Delete this session?')) return;
+  await api('/api/sessions/' + id, 'DELETE');
+  location.reload();
+}
+</script>
+{% endblock %}

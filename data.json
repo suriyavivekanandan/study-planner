@@ -1,0 +1,16 @@
+{
+  "subjects": [
+    {
+      "id": 20,
+      "name": "DSA",
+      "color": "purple",
+      "goal": 3
+    }
+  ],
+  "sessions": [],
+  "tasks": [],
+  "flashcards": [],
+  "study_log": [],
+  "pomodoro_count": 0,
+  "next_id": 37
+}
